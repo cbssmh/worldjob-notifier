@@ -25,52 +25,44 @@ def check_worldjob():
         response = requests.get(URL, headers=headers, timeout=20)
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # [정밀 파싱] 로고를 피하기 위해 리스트가 들어있는 특정 영역(ID 혹은 Class)을 먼저 지정합니다.
-        # 월드잡 리스트는 보통 'gridContent' 또는 'content' 영역 안에 있습니다.
-        content_area = soup.select_one("#gridContent") or soup.select_one(".board-list-type") or soup.select_one("#content")
-        
-        if not content_area:
-            # 영역을 못 찾으면 전체에서 찾되, 로고 단어는 건너뜁니다.
-            content_area = soup
+        # 1. 고정 게시물(item-fixed)을 제외한 첫 번째 일반 게시물을 찾습니다.
+        # :not(.item-fixed)를 사용하여 진짜 최신순 리스트의 첫 번째를 타격합니다.
+        latest_item = soup.select_one(".bbs-list-item:not(.item-fixed)")
 
-        links = content_area.find_all('a')
-        
-        valid_title = ""
-        # 제외할 키워드 보강 (로고 및 메뉴 방어)
-        exclude_keywords = ['World Job', 'WorldJob', '로그인', '회원가입', '바로가기', '메인으로', '사이트맵', '이용약관']
-        
-        for a in links:
-            title = a.text.strip()
-            # 제목 길이가 적당하고 제외 키워드가 없는 것
-            if len(title) > 5 and not any(key in title for key in exclude_keywords):
-                # 자바스크립트 호출문이나 의미 없는 문자는 제외
-                if "javascript" not in a.get('href', '') and "ShowList" not in title:
-                    valid_title = title
-                    break
+        if not latest_item:
+            # 만약 위 선택자로 못 찾으면 고정글 포함 전체에서 첫 번째를 가져옵니다.
+            latest_item = soup.select_one(".bbs-list-item")
 
-        if not valid_title:
-            print("적절한 공지사항 제목을 찾지 못했습니다.")
-            return
+        if latest_item:
+            # 2. 제목 추출
+            title_el = latest_item.select_one(".bbs-list--tit")
+            title = title_el.text.strip() if title_el else "제목 없음"
+            
+            # 3. 링크 추출 (상대 경로인 경우 도메인 붙여줌)
+            relative_link = latest_item.get('href', '')
+            full_link = f"https://www.worldjob.or.kr{relative_link}" if relative_link.startswith('/') else URL
 
-        print(f"성공! 최신글 확인: {valid_title}")
-
-        # 비교 및 저장
-        db_path = "last_title.txt"
-        last_title = ""
-        if os.path.exists(db_path):
-            with open(db_path, "r", encoding="utf-8") as f:
-                last_title = f.read().strip()
-                
-        if valid_title != last_title:
-            msg = f"🆕 월드잡 새 공지사항\n\n제목: {valid_title}\n링크: {URL}"
-            send_message(msg)
-            with open(db_path, "w", encoding="utf-8") as f:
-                f.write(valid_title)
+            print(f"🎯 최종 확인된 최신글: {title}")
+            
+            # --- 이후 저장 및 비교 로직 (이전과 동일) ---
+            db_path = "last_title.txt"
+            last_title = ""
+            if os.path.exists(db_path):
+                with open(db_path, "r", encoding="utf-8") as f:
+                    last_title = f.read().strip()
+            
+            if title != last_title:
+                msg = f"🆕 월드잡 새 공지사항\n\n제목: {title}\n링크: {full_link}"
+                send_message(msg)
+                with open(db_path, "w", encoding="utf-8") as f:
+                    f.write(title)
+            else:
+                print("😴 변동 사항 없음")
         else:
-            print(f"변동 없음: {valid_title}")
+            print("❌ 게시글 리스트를 찾지 못했습니다.")
 
     except Exception as e:
-        print(f"시스템 오류: {e}")
+        print(f"❗ 오류 발생: {e}")
 
 if __name__ == "__main__":
     check_worldjob()
