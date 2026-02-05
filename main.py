@@ -9,7 +9,12 @@ URL = "https://www.worldjob.or.kr/info/bbs/notice/list.do?menuId=1000006475"
 def send_message(text):
     if TOKEN and CHAT_ID:
         api_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-        requests.post(api_url, data={'chat_id': CHAT_ID, 'text': text})
+        # [수정] 전송 결과를 확인하기 위해 response를 받습니다.
+        res = requests.post(api_url, data={'chat_id': CHAT_ID, 'text': text})
+        if res.status_code == 200:
+            print("텔레그램 알림 전송 성공!")
+        else:
+            print(f"텔레그램 전송 실패! 에러코드: {res.status_code}, 사유: {res.text}")
 
 def check_worldjob():
     headers = {
@@ -20,33 +25,36 @@ def check_worldjob():
         response = requests.get(URL, headers=headers, timeout=20)
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # 1. 일단 페이지 내의 모든 <a> 태그(링크)를 가져옵니다.
-        links = soup.find_all('a')
+        # [정밀 파싱] 로고를 피하기 위해 리스트가 들어있는 특정 영역(ID 혹은 Class)을 먼저 지정합니다.
+        # 월드잡 리스트는 보통 'gridContent' 또는 'content' 영역 안에 있습니다.
+        content_area = soup.select_one("#gridContent") or soup.select_one(".board-list-type") or soup.select_one("#content")
+        
+        if not content_area:
+            # 영역을 못 찾으면 전체에서 찾되, 로고 단어는 건너뜁니다.
+            content_area = soup
+
+        links = content_area.find_all('a')
         
         valid_title = ""
-        
-        # 2. 링크 중에서 진짜 '공지사항 제목'처럼 생긴 것을 찾습니다.
-        # 조건: 텍스트가 10자 이상이고, 특정 키워드(로그인, 메뉴 등)가 없는 것
-        exclude_keywords = ['로그인', '회원가입', '바로가기', '사이트맵', '이용약관', 'Contact']
+        # 제외할 키워드 보강 (로고 및 메뉴 방어)
+        exclude_keywords = ['World Job', 'WorldJob', '로그인', '회원가입', '바로가기', '메인으로', '사이트맵', '이용약관']
         
         for a in links:
             title = a.text.strip()
-            # 월드잡 공지사항 제목은 보통 어느 정도 길이가 있습니다.
-            if len(title) > 10 and not any(key in title for key in exclude_keywords):
-                valid_title = title
-                break # 가장 먼저 찾은 긴 링크를 최신글로 간주
+            # 제목 길이가 적당하고 제외 키워드가 없는 것
+            if len(title) > 5 and not any(key in title for key in exclude_keywords):
+                # 자바스크립트 호출문이나 의미 없는 문자는 제외
+                if "javascript" not in a.get('href', '') and "ShowList" not in title:
+                    valid_title = title
+                    break
 
         if not valid_title:
-            print("--- 디버깅: 발견된 모든 링크 텍스트 (상위 20개) ---")
-            for i, a in enumerate(links[:20]):
-                print(f"{i}: {a.text.strip()}")
-            print("------------------------------------------")
-            print("적절한 제목을 찾지 못했습니다.")
+            print("적절한 공지사항 제목을 찾지 못했습니다.")
             return
 
         print(f"성공! 최신글 확인: {valid_title}")
 
-        # 비교 및 저장 로직
+        # 비교 및 저장
         db_path = "last_title.txt"
         last_title = ""
         if os.path.exists(db_path):
@@ -58,7 +66,6 @@ def check_worldjob():
             send_message(msg)
             with open(db_path, "w", encoding="utf-8") as f:
                 f.write(valid_title)
-            print("텔레그램 알림 전송 완료")
         else:
             print(f"변동 없음: {valid_title}")
 
