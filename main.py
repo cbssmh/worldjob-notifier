@@ -20,31 +20,33 @@ def check_worldjob():
         response = requests.get(URL, headers=headers, timeout=20)
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # [핵심 수정] 월드잡의 실제 클래스명 'board-list-type'을 타격합니다.
-        # 모든 행(tr)을 가져와서 분석합니다.
-        rows = soup.select(".board-list-type table tbody tr") or \
-               soup.select("table tbody tr")
-
+        # 1. 일단 페이지 내의 모든 <a> 태그(링크)를 가져옵니다.
+        links = soup.find_all('a')
+        
         valid_title = ""
-        for row in rows:
-            # 제목이 들어있는 칸(보통 클래스가 'subject'이거나 'left'임)
-            title_el = row.select_one(".subject") or row.select_one(".left") or row.select_one("a")
-            
-            if title_el:
-                # 텍스트 내부에 '공지' 같은 말머리가 있을 수 있으니 정리
-                title = title_el.text.strip()
-                # 빈 줄이 아니고 실제 글 제목 같은 것만 채택
-                if len(title) > 2:
-                    valid_title = title
-                    break
+        
+        # 2. 링크 중에서 진짜 '공지사항 제목'처럼 생긴 것을 찾습니다.
+        # 조건: 텍스트가 10자 이상이고, 특정 키워드(로그인, 메뉴 등)가 없는 것
+        exclude_keywords = ['로그인', '회원가입', '바로가기', '사이트맵', '이용약관', 'Contact']
+        
+        for a in links:
+            title = a.text.strip()
+            # 월드잡 공지사항 제목은 보통 어느 정도 길이가 있습니다.
+            if len(title) > 10 and not any(key in title for key in exclude_keywords):
+                valid_title = title
+                break # 가장 먼저 찾은 긴 링크를 최신글로 간주
 
         if not valid_title:
-            print("데이터 파싱 실패: 적절한 제목을 찾을 수 없습니다.")
+            print("--- 디버깅: 발견된 모든 링크 텍스트 (상위 20개) ---")
+            for i, a in enumerate(links[:20]):
+                print(f"{i}: {a.text.strip()}")
+            print("------------------------------------------")
+            print("적절한 제목을 찾지 못했습니다.")
             return
 
         print(f"성공! 최신글 확인: {valid_title}")
 
-        # 비교 및 저장
+        # 비교 및 저장 로직
         db_path = "last_title.txt"
         last_title = ""
         if os.path.exists(db_path):
@@ -58,7 +60,7 @@ def check_worldjob():
                 f.write(valid_title)
             print("텔레그램 알림 전송 완료")
         else:
-            print("변동 사항 없음 (이전 글과 동일)")
+            print(f"변동 없음: {valid_title}")
 
     except Exception as e:
         print(f"시스템 오류: {e}")
