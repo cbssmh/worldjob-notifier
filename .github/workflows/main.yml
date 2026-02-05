@@ -1,0 +1,31 @@
+name: WorldJob Watcher
+
+on:
+  schedule:
+    - cron: '0 * * * *' # 매 시간 정각에 실행
+  workflow_dispatch: # 수동 실행 버튼 활성화
+
+jobs:
+  run_bot:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 파일(last_title.txt)을 수정하고 저장할 수 있는 권한
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+      - name: Run Script
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python main.py
+      - name: Auto Commit # 변경된 텍스트 파일을 내 깃허브에 다시 저장
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add last_title.txt
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update last notice" && git push)
