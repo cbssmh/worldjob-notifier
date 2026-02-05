@@ -2,47 +2,63 @@ import requests
 from bs4 import BeautifulSoup
 import os
 
-# 1. 설정
+TOKEN = os.environ.get('TELEGRAM_TOKEN')
+CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 URL = "https://www.worldjob.or.kr/info/bbs/notice/list.do?menuId=1000006475"
-TOKEN = os.environ['TELEGRAM_TOKEN']
-CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
-DB_FILE = "last_post.txt"
 
-def send_telegram(message):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    params = {"chat_id": CHAT_ID, "text": message}
-    requests.get(url, params=params)
+def send_message(text):
+    if TOKEN and CHAT_ID:
+        api_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+        requests.post(api_url, data={'chat_id': CHAT_ID, 'text': text})
 
-def check_notice():
-    # 2. 웹페이지 가져오기
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
-    res = requests.get(URL, headers=headers)
-    soup = BeautifulSoup(res.text, "html.parser")
-
-    # 3. 최신 공지글 추출 (월드잡 구조에 맞게 선택자 설정)
-    # 일반글 중 가장 위에 있는 것을 가져옵니다 (공지 고정글 제외 로직은 추가 가능)
-    first_post = soup.select_one("#gridContent table tbody tr:not(.notice)") 
-    if not first_post:
-        first_post = soup.select_one("#gridContent table tbody tr") # 예외 처리
-        
-    title = first_post.select_one(".title").text.strip()
-    link_attr = first_post.select_one("a")['onclick'] # 월드잡은 자바스크립트 호출 형태일 수 있음
+def check_worldjob():
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
     
-    # 4. 이전 글과 비교
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            last_title = f.read().strip()
-    else:
-        last_title = ""
+    try:
+        response = requests.get(URL, headers=headers, timeout=15)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # [수정 포인트] 더 넓은 범위의 선택자를 사용하고, 여러 후보를 시도합니다.
+        # 보통 공공기관 게시판은 'board_list' 클래스나 'tbody'의 'tr'을 사용합니다.
+        row = soup.select_one(".board_list tbody tr") or \
+              soup.select_one("table tbody tr") or \
+              soup.select_one(".table_col tbody tr")
 
-    if title != last_title:
-        # 5. 새 글이 있으면 알림 전송 및 저장
-        print(f"새 글 발견: {title}")
-        send_telegram(f"🔔 월드잡 새 공지사항!\n\n제목: {title}\n링크: {URL}")
-        with open(DB_FILE, "w", encoding="utf-8") as f:
-            f.write(title)
-    else:
-        print("새로운 공지사항이 없습니다.")
+        # [방어 코드] 만약 행을 찾지 못했다면 에러를 내지 않고 종료합니다.
+        if not row:
+            print("게시글 목록을 찾을 수 없습니다. 사이트 구조를 확인해야 합니다.")
+            return
+
+        # 제목 태그 찾기 (클래스명이 .title 이거나 첫 번째 a 태그인 경우가 많음)
+        title_element = row.select_one(".title") or row.select_one("td.left a") or row.select_one("a")
+        
+        if not title_element:
+            print("제목 태그를 찾을 수 없습니다.")
+            return
+
+        title = title_element.text.strip()
+        print(f"현재 최신글 제목: {title}")
+
+        # 비교 및 저장 로직
+        db_path = "last_title.txt"
+        last_title = ""
+        if os.path.exists(db_path):
+            with open(db_path, "r", encoding="utf-8") as f:
+                last_title = f.read().strip()
+                
+        if title != last_title:
+            msg = f"🆕 월드잡 새 공지사항\n\n제목: {title}\n바로가기: {URL}"
+            send_message(msg)
+            with open(db_path, "w", encoding="utf-8") as f:
+                f.write(title)
+            print("새 글 알림 전송 완료!")
+        else:
+            print("변동 사항 없음")
+
+    except Exception as e:
+        print(f"오류 발생: {e}")
 
 if __name__ == "__main__":
-    check_notice()
+    check_worldjob()
