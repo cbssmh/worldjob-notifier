@@ -2,7 +2,7 @@ name: WorldJob Watcher
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: "0 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -16,7 +16,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: "3.9"
 
       - name: Install dependencies
         run: pip install requests beautifulsoup4
@@ -31,10 +31,9 @@ jobs:
         run: |
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
-          
-          # 파일이 존재하는지 확인하고, 변경사항이 있을 때만 커밋/푸시
-          if [ -f last_title.txt ]; then
-            git add last_title.txt
+
+          if [ -f last_seen.txt ]; then
+            git add last_seen.txt
             if ! git diff --quiet --staged; then
               git commit -m "Update last notice"
               git push
