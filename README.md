@@ -1,8 +1,8 @@
 # WorldJob Notice Notifier
 
-A **Python-based automation system** that monitors the WorldJob+ notice board and sends alerts via **Discord Webhook** when a new general announcement is posted.
+A Python-based automation system that monitors the **WorldJob+ notice board** and sends alerts via **Discord Webhook** when a new general announcement is posted.
 
-Unlike a simple crawler, this project is designed as a **24/7 server-side notification service deployed on a cloud VM**.
+Unlike a simple crawler, this project is designed as a **24/7 server-side notification service** deployed on a cloud VM.
 
 ---
 
@@ -13,13 +13,13 @@ WorldJob Site
       ↓
 Crawler
       ↓
-Scheduler
+Scheduler (APScheduler)
       ↓
-SQLite (state)
+SQLite (state tracking)
       ↓
-Notifier
+Notifier (Discord Webhook)
       ↓
-Discord
+Discord Channel
 ```
 
 ---
@@ -33,30 +33,29 @@ Discord
 - Persist state using SQLite
 - Periodic checks using APScheduler
 - Environment variable configuration via `.env`
+- Monitoring API using FastAPI
 - Deployed on Oracle Cloud Always Free VM
-- Runs continuously using `systemd`
+- Runs continuously using systemd
 
 ---
 
 # Tech Stack
 
 ## Backend
-
 - Python
 
 ## Libraries
-
 - requests
 - BeautifulSoup4
 - APScheduler
 - python-dotenv
+- FastAPI
+- Uvicorn
 
 ## Storage
-
 - SQLite
 
 ## Deployment
-
 - Oracle Cloud Always Free VM
 - systemd service
 
@@ -72,6 +71,7 @@ worldjob-notice-notifier/
 ├── scheduler.py
 ├── notifier.py
 ├── config.py
+├── api.py
 ├── requirements.txt
 ├── sites.json
 ├── .env.example
@@ -82,29 +82,36 @@ worldjob-notice-notifier/
 
 # Setup (Local Development)
 
-## 1. Create virtual environment
+## 1. Clone repository
 
+```bash
+git clone https://github.com/cbssmh/worldjob-notice-notifier.git
+cd worldjob-notice-notifier
 ```
+
+## 2. Create virtual environment
+
+```bash
 python -m venv .venv
 ```
 
-## 2. Activate virtual environment
+## 3. Activate virtual environment
 
 ### Windows
 
-```
+```bash
 .venv\Scripts\activate
 ```
 
 ### Mac / Linux
 
-```
+```bash
 source .venv/bin/activate
 ```
 
-## 3. Install dependencies
+## 4. Install dependencies
 
-```
+```bash
 pip install -r requirements.txt
 ```
 
@@ -121,6 +128,12 @@ DISCORD_WEBHOOK_URL=your_discord_webhook_url
 CHECK_INTERVAL_MINUTES=10
 ```
 
+You can also copy the example configuration:
+
+```bash
+cp .env.example .env
+```
+
 | Variable | Description |
 |--------|-------------|
 | DISCORD_WEBHOOK_URL | Discord webhook URL for notifications |
@@ -130,7 +143,7 @@ CHECK_INTERVAL_MINUTES=10
 
 # Run
 
-```
+```bash
 python app.py
 ```
 
@@ -143,15 +156,43 @@ Scheduler started: checking every 10 minutes
 
 ---
 
+# API
+
+This project provides a **FastAPI monitoring API**.
+
+## Available endpoints
+
+| Endpoint | Method | Description |
+|--------|--------|-------------|
+| /health | GET | Health check |
+| /status | GET | Service status |
+| /sites | GET | List monitored sites |
+| /last-notice | GET | Last stored notice |
+| /run-check | POST | Manually trigger a notice check |
+
+Swagger documentation:
+
+```
+http://localhost:8000/docs
+```
+
+Run API locally:
+
+```bash
+uvicorn api:app --reload
+```
+
+---
+
 # How It Works
 
 System workflow:
 
-1. Request the WorldJob notice list page
-2. Extract the latest general notice
-3. Compare with the previously stored notice in SQLite
-4. Send a Discord Webhook notification if a new notice is detected
-5. Save the latest state in the database
+1. Request the WorldJob notice list page  
+2. Extract the latest general notice  
+3. Compare with the previously stored notice in SQLite  
+4. Send a Discord Webhook notification if a new notice is detected  
+5. Save the latest state in the database  
 
 ---
 
@@ -165,17 +206,33 @@ This project is deployed on an **Oracle Cloud Always Free VM** and runs continuo
 - Python 3
 - systemd service
 
-## Service Management
+---
 
-```
+# Service Management
+
+Check service status:
+
+```bash
 sudo systemctl status worldjob-notifier
+```
+
+Restart service:
+
+```bash
 sudo systemctl restart worldjob-notifier
+```
+
+Stop service:
+
+```bash
 sudo systemctl stop worldjob-notifier
 ```
 
-## View Logs
+---
 
-```
+# View Logs
+
+```bash
 journalctl -u worldjob-notifier -f
 ```
 
@@ -184,10 +241,10 @@ journalctl -u worldjob-notifier -f
 # Future Improvements
 
 - Support monitoring multiple websites
-- Status API using FastAPI
-- Web dashboard
-- Docker deployment
+- Web dashboard for notice monitoring
+- Docker container deployment
 - GitHub Actions CI/CD pipeline
+- Alert filtering and keyword notifications
 
 ---
 
@@ -195,3 +252,23 @@ journalctl -u worldjob-notifier -f
 
 GitHub  
 https://github.com/cbssmh
+
+---
+
+# ⭐ Project Goal
+
+This project demonstrates how to build and operate a **real-world automation service**, including:
+
+- Web scraping
+- Scheduled jobs
+- State persistence
+- Notification systems
+- Environment-based configuration
+- Cloud deployment
+- Production service management
+
+---
+
+# 📌 Status
+
+Production-ready notification service running on a cloud VM.
