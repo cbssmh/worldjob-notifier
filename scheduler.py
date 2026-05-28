@@ -77,7 +77,15 @@ def check_sites():
 
 def start_scheduler():
     scheduler = BlockingScheduler()
-    scheduler.add_job(check_sites, "interval", minutes=CHECK_INTERVAL_MINUTES)
+
+    scheduler.add_job(
+        check_sites,
+        "interval",
+        minutes=CHECK_INTERVAL_MINUTES,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300
+    )
 
     print(f"스케줄러 시작: {CHECK_INTERVAL_MINUTES}분마다 점검")
     check_sites()
