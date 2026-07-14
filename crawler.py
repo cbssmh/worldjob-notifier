@@ -16,7 +16,10 @@ HEADERS = {
 def fetch_latest_post(site: dict):
     url = site["url"]
     link_pattern = site.get("link_pattern")
-    
+
+    if not link_pattern:
+        raise ValueError("site link_pattern is required")
+
     response = requests.get(url, headers=HEADERS, timeout=15)
     response.raise_for_status()
 
@@ -33,7 +36,7 @@ def fetch_latest_post(site: dict):
             continue
 
         # 공지 상세 링크만 통과
-        if "/info/bbs/notice/view.do" not in href:
+        if link_pattern not in href:
             continue
 
         # 링크 텍스트가 "1146 제목 2026-02-25" 같은 일반 공지 형식인지 검사

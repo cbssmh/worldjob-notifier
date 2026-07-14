@@ -1,11 +1,19 @@
-from fastapi import FastAPI
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, HTTPException
 import json
 
-from crawler import fetch_latest_post
-from db import get_last_post, save_last_post
-from notifier import send_discord_message
+from db import get_last_post, init_db
+from workflow import process_site
 
-app = FastAPI(title="WorldJob Notifier API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(title="WorldJob Notifier API", lifespan=lifespan)
 
 
 def load_sites():
@@ -53,37 +61,7 @@ def run_check():
     sites = load_sites()
     site = sites[0]
 
-    latest = fetch_latest_post(site)
-    saved = get_last_post(site["name"])
-
-    if saved and saved["number"] == latest["number"]:
-        return {
-            "message": "No new notice",
-            "site": site["name"],
-            "latest_number": latest["number"],
-            "latest_title": latest["title"]
-        }
-
-    save_last_post(
-        site["name"],
-        latest["number"],
-        latest["title"],
-        latest["link"]
-    )
-
-    send_discord_message(
-        f"📢 **{site['name']} 새 공지 발견!**\n"
-        f"- 번호: {latest['number']}\n"
-        f"- 제목: {latest['title']}\n"
-        f"- 날짜: {latest['date']}\n"
-        f"- 링크: {latest['link']}"
-    )
-
-    return {
-        "message": "New notice detected",
-        "site": site["name"],
-        "number": latest["number"],
-        "title": latest["title"],
-        "date": latest["date"],
-        "url": latest["link"]
-    }
+    try:
+        return process_site(site)
+    except Exception:
+        raise HTTPException(status_code=502, detail="Notice check failed")
